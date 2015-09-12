@@ -4,69 +4,68 @@ angular.module('angular-hal', [])
 
 .service('halClient', [
     '$http', '$q', '$window',
-    function (
-        $http, $q, $window
-    ) {
+    function ($http, $q, $window) {
         var rfc6570 = $window.rfc6570;
 
         /* @ngNoInject */
-        this.$get = function (href, options) {
+        this.$get = function (href, options, config) {
             return callService('GET', href, options);
         }; //get
 
-        this.$post = function (href, options, data) {
+        this.$post = function (href, options, data, config) {
             return callService('POST', href, options, data);
         }; //post
 
-        this.$put = function (href, options, data) {
+        this.$put = function (href, options, data, config) {
             return callService('PUT', href, options, data);
         }; //put
 
-        this.$patch = function (href, options, data) {
+        this.$patch = function (href, options, data, config) {
             return callService('PATCH', href, options, data);
         }; //patch
 
-        this.$del = function (href, options) {
+        this.$del = function (href, options, config) {
             return callService('DELETE', href, options);
         }; //del
 
 
-        function Resource(href, options, data) {
-            var linksAttribute = options.linksAttribute || '_links';
-            var embeddedAttribute = options.embeddedAttribute || '_embedded';
-            var ignoreAttributePrefixes = options.ignoreAttributePrefixes || ['_', '$'];
+        function Resource(href, config, data) {
+            if (!config) config = {};
+            var linksAttribute = config.linksAttribute || '_links';
+            var embeddedAttribute = config.embeddedAttribute || '_embedded';
+            var ignoreAttributePrefixes = config.ignoreAttributePrefixes || ['_', '$'];
             var links = {};
             var embedded = {};
 
             href = getSelfLink(href, data).href;
 
-            defineHiddenProperty(this, '$href', function (rel, params) {
+            defineHiddenProperty(this, '$href', function (rel, options) {
                 if (!(rel in links)) return null;
 
-                return hrefLink(links[rel], params);
+                return hrefLink(links[rel], options);
             });
             defineHiddenProperty(this, '$has', function (rel) {
                 return rel in links;
             });
-            defineHiddenProperty(this, '$get', function (rel, params) {
+            defineHiddenProperty(this, '$get', function (rel, options) {
                 var link = links[rel];
-                return callLink('GET', link, params);
+                return callLink('GET', link, options);
             });
-            defineHiddenProperty(this, '$post', function (rel, params, data) {
+            defineHiddenProperty(this, '$post', function (rel, options, data) {
                 var link = links[rel];
-                return callLink('POST', link, params, data);
+                return callLink('POST', link, options, data);
             });
-            defineHiddenProperty(this, '$put', function (rel, params, data) {
+            defineHiddenProperty(this, '$put', function (rel, options, data) {
                 var link = links[rel];
-                return callLink('PUT', link, params, data);
+                return callLink('PUT', link, options, data);
             });
-            defineHiddenProperty(this, '$patch', function (rel, params, data) {
+            defineHiddenProperty(this, '$patch', function (rel, options, data) {
                 var link = links[rel];
-                return callLink('PATCH', link, params, data);
+                return callLink('PATCH', link, options, data);
             });
-            defineHiddenProperty(this, '$del', function (rel, params) {
+            defineHiddenProperty(this, '$del', function (rel, options) {
                 var link = links[rel];
-                return callLink('DELETE', link, params);
+                return callLink('DELETE', link, options);
             });
 
 
@@ -102,7 +101,7 @@ angular.module('angular-hal', [])
                         links[rel] = link;
                         //console.log(link)
 
-                        var resource = createResource(href, options, embedded);
+                        var resource = createResource(href, config, embedded);
 
                         embedResource(resource);
 
@@ -128,24 +127,25 @@ angular.module('angular-hal', [])
                 embedded[href] = $q.when(resource);
             } //embedResource
 
-            function hrefLink(link, params) {
-                var href = link.templated ? new rfc6570.UriTemplate(link.href).stringify(params) : link.href;
+            function hrefLink(link, options) {
+                var href = link.templated ? new rfc6570.UriTemplate(link.href).stringify(options.urlParams) : link.href;
 
                 return href;
             } //hrefLink
 
-            function callLink(method, link, params, data) {
+            function callLink(method, link, options, data) {
+                if (!options) options = {};
                 var linkHref;
 
                 if (Array.isArray(link)) {
                     return $q.all(link.map(function (link) {
                         if (method !== 'GET') throw 'method is not supported for arrays';
 
-                        return callLink(method, link, params, data);
+                        return callLink(method, link, options, data);
                     }));
                 }
 
-                linkHref = hrefLink(link, params);
+                linkHref = hrefLink(link, options);
 
                 if (method === 'GET') {
                     if (linkHref in embedded) return embedded[linkHref];
@@ -201,7 +201,7 @@ angular.module('angular-hal', [])
         } //normalizeLink
 
 
-        function callService(method, href, options, data) {
+        function callService(method, href, options, data, config) {
             if (!options) options = {};
             if (!options.headers) options.headers = {};
             if (!options.headers['Content-Type']) options.headers['Content-Type'] = 'application/json';
